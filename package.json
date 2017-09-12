@@ -1,0 +1,18 @@
+{
+  "name": "autogf",
+  "version": "1.0.0",
+  "description": "AUTO GF",
+  "main": "autogf.js",
+  "scripts": {
+    "test": "node autogf.js",
+    "sql": "node sql_create.js"
+  },
+  "author": "ivica",
+  "license": "ISC",
+  "dependencies": {
+    "bookshelf": "^0.10.3",
+    "knex": "^0.12.9",
+    "math": "0.0.3",
+    "mssql": "^3.3.0"
+  }
+}

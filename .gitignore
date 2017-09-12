@@ -1,0 +1,10 @@
+node_modules/
+nbproject/
+data/
+.vscode/
+config/
+database/
+notes/
+output/
+testsites/
+queue_init.log
