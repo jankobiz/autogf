@@ -82,15 +82,15 @@ function queue_init() {
                     insertModel.push(element);
                 }
             }, this);
-            let found = false;            
+            let found = false;
             for(i=0; i < resultsMySQL.length; i++) {
                 for(j=0; j < resultsMSSQl.length; j++) {
                     if(resultsMySQL[i].siteid === resultsMSSQl[j].siteid)  {
                         found = true;
                         break;
-                    }                    
+                    }
                 }
-                if (!found) {                    
+                if (!found) {
                     deleteModel.push(resultsMySQL[i].siteid);
                 }
                 found = false;
@@ -136,39 +136,79 @@ function queue_init() {
         console.log(qu.isNew());
         return sitesMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
             //console.log(JSON.stringify(siteMySQL));
-                let i = utilFunctions.getRandomIntInclusive(0,27325);
-                console.log('Random number ' + i);
+                let n = utilFunctions.getRandomIntInclusive(0,27325);
+                // console.log('Random number ' + i);
+                let i = 0;
+                let recordsJSON = siteMySQL.toJSON();
+                let recordNumber = recordsJSON.length;
+                console.log('Record number ' + recordNumber);
                 let currentDateTime = new Date();
-                console.log(currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
-                console.log('Time Zone Offset ' + currentDateTime.getTimezoneOffset());
-                console.log('Time Milliseconds ' + currentDateTime.getMilliseconds());
-                console.log('Datetime ' + currentDateTime);
-                console.log('Datetime ISO ' + currentDateTime.toISOString());
-                console.log('Timestamp ' + currentDateTime.getTime());
-                console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());
-                console.log('Autogf lastrun UTC ' + siteMySQL.toJSON()[0].autogf_lastrun.getUTC);
-                console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[0].autogf_lastrun);
-                let timeDiff = currentDateTime.getTime() - siteMySQL.toJSON()[0].autogf_lastrun.getTime();
-                console.log('TIME DIFFERENCE ' + timeDiff);
-                console.log('TIME DIFFERENCE IN DAYS ' + timeDiff/(1000 * 60 * 60 * 24));
-                console.log('TIME DIFFERENCE IN DAYS FUNCTION FLOOR ' + dateHandle.dateDiffInDaysFloor(siteMySQL.toJSON()[0].autogf_lastrun, currentDateTime));
-                console.log('TIME DIFFERENCE IN DAYS FUNCTION CEIL ' + dateHandle.dateDiffInDaysCeil(siteMySQL.toJSON()[0].autogf_lastrun, currentDateTime));
-                console.log('Function time diff ' + dateHandle.dateDiffInDaysUTC(siteMySQL.toJSON()[0].autogf_lastrun, currentDateTime));
-                console.log(siteMySQL.toJSON()[i]);
-                return siteMySQL.toJSON()[i];
-            }).then (function(record){
-                return  job.save({siteid: record.siteid, siteurl: record.siteurl, bbstype: record.bbstype,
-                     cgipath: record.cgipath, needlogin: record.needlogin, agentname: record.agentname,
-                     fetchdelay: record.fetchdelay, timeoutvalue: "120", useproxy: "1"}).then(function(operationStatus) {
-                   console.log('Added to jobs! ');
-                   console.log(operationStatus.toJSON());
-                   return operationStatus;
+                let insertQueue = [];
+                let insertJob = [];
+                let jobRecord;
+                while (i < 2) {
+                    console.log('=====================================');
+                    let autoGFPriority = recordsJSON[i].autogf_priority;                    
+                    console.log("Modified current datetime " + currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
+                    console.log('Site id ' + siteMySQL.toJSON()[i].siteid);
+                    console.log('Datetime ' + currentDateTime);
+                    console.log('Datetime ISO ' + currentDateTime.toISOString());
+                    console.log('Timestamp ' + currentDateTime.getTime());
+                    console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());                    
+                    console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[i].autogf_lastrun);
+                    let timeDiff = dateHandle.dateDiffInDaysCeil(siteMySQL.toJSON()[i].autogf_lastrun, currentDateTime);
+                    console.log('TIME DIFFERENCE ' + timeDiff);
+                    if (timeDiff >= autoGFPriority) {
+                        console.log("Site with siteid " + siteMySQL.toJSON()[i].siteid + " is eligible for auto GF");
+                        jobRecord = 
+                            {
+                                siteid: siteMySQL.toJSON()[i].siteid,
+                                siteurl: siteMySQL.toJSON()[i].siteurl,
+                                bbstype: siteMySQL.toJSON()[i].bbstype,
+                                cgipath: siteMySQL.toJSON()[i].cgipath,
+                                needlogin: siteMySQL.toJSON()[i].needlogin,
+                                agentname: siteMySQL.toJSON()[i].agentname,
+                                fetchdelay: siteMySQL.toJSON()[i].fetchdelay,
+                                timeoutvalue: "120",
+                                useproxy: "1",
+                                dateadded: siteMySQL.toJSON()[i].dateadded,
+                                dateupdated: siteMySQL.toJSON()[i].dateupdated,
+                                lastcrawl: siteMySQL.toJSON()[i].lastcrawl,
+                                lastrun: siteMySQL.toJSON()[i].autogf_lastrun,
+                                lastsync: siteMySQL.toJSON()[i].autogf_latsync,
+                                priority: siteMySQL.toJSON()[i].autogf_priority
+                            };
+                        insertJob.push(jobRecord);
+                    }
+                    //console.log(siteMySQL.toJSON()[i]);
+                    i++;
+                }
+                // return insertJob;
+                return Promise.all([insertJob]);
+            }).then (function(models){
+                let insertJobCollection = model.JobsCollection.forge(models[0]);
+                return insertJobCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
+                    console.log('Records inserted - ' + operationStatus.length);
+                    operationStatus.forEach(function(element, i) {
+                        console.log('Siteid - ' + element.get('siteid'));
+                    }, this);
+                    console.log('Added to jobs! ');
+                    // console.log (JSON.stringify(operationStatus));
+                    // console.log(operationStatus.toJSON().id);
+                    console.log('After stringify!');
+                    //console.log(operationStatus.toJSON());
+                    return operationStatus;
+                });
             }).then(function(operationStatus) {
-                return  qu.save({priority: "15", job_id: operationStatus.toJSON().id}).then(function() {
+                let insertQueueCollection = model.QueueCollection.forge(operationStatus);
+                let id = operationStatus[0].get('id');
+                console.log('Operational ID ' + operationStatus[0].id);
+                console.log('Operation status ' + JSON.stringify(operationStatus));
+                return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
                     console.log('Added to queue!');
+                    return 'Success!';
                 });
             });
-        });
         // return testsiteMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
         //     let resultsMySQL = siteMySQL.toJSON();
         //     console.log(resultsMySQL.length + ' MySQL testsites records fetched');
@@ -186,7 +226,7 @@ function queue_init() {
         console.error(err, err.stack);
     }).finally(function () {
         console.log('Finally finally block is executed!') ;
-    //    model.closeMSSQLConnection();
-        process.exit();
+        return model.closeMSSQLConnection(), model.closeMySQLConnection();
+        // process.exit();
     });
 }
