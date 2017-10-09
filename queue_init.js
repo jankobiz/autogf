@@ -184,9 +184,10 @@ function queue_init() {
                     i++;
                 }
                 // return insertJob;
-                return Promise.all([insertJob]);
+                // return Promise.all([insertJob]);
+                return insertJob;
             }).then (function(models){
-                let insertJobCollection = model.JobsCollection.forge(models[0]);
+                let insertJobCollection = model.JobsCollection.forge(models);
                 return insertJobCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
                     console.log('Records inserted - ' + operationStatus.length);
                     operationStatus.forEach(function(element, i) {
@@ -197,18 +198,33 @@ function queue_init() {
                     // console.log(operationStatus.toJSON().id);
                     console.log('After stringify!');
                     //console.log(operationStatus.toJSON());
-                    return operationStatus;
-                });
-            }).then(function(operationStatus) {
-                let insertQueueCollection = model.QueueCollection.forge(operationStatus);
-                let id = operationStatus[0].get('id');
-                console.log('Operational ID ' + operationStatus[0].id);
-                console.log('Operation status ' + JSON.stringify(operationStatus));
-                return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
-                    console.log('Added to queue!');
-                    return 'Success!';
+                    operationStatus.forEach(function(element, i) {
+                        console.log('Siteid - ' + element.get('siteid'));
+                    }, this);                   
+                    return operationStatus[0].related('queue').add(
+                            [{  
+                                job_id: operationStatus[0].id,
+                                priority: "15"
+                            }, {
+                                job_id: operationStatus[0].id,
+                                priority: "16"
+                            }])
+                            .invokeThen('save').then(function(success) {
+                                console.log('Element 0 inserted into queue!');
+                            });                    
+                    console.log("Insertion into queue completed!");
                 });
             });
+            // }).then(function(operationStatus) {
+            //     let insertQueueCollection = model.QueueCollection.forge(operationStatus);
+            //     let id = operationStatus[0].get('id');
+            //     console.log('Operational ID ' + operationStatus[0].id);
+            //     console.log('Operation status ' + JSON.stringify(operationStatus));
+            //     return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
+            //         console.log('Added to queue!');
+            //         return 'Success!';
+            //     });
+            // });
         // return testsiteMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
         //     let resultsMySQL = siteMySQL.toJSON();
         //     console.log(resultsMySQL.length + ' MySQL testsites records fetched');
