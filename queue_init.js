@@ -17,7 +17,7 @@ var testsiteMySQL = new model.TestsitesMySQL();
     console.log('Cron task number ' + cronTaskNo++);
     queue_init();
 // }, 20000);
-
+console.time('full');
 function queue_init() {
     //  fetch records from MS SQL DB
     let updateModel = [];
@@ -142,46 +142,52 @@ function queue_init() {
                 let recordsJSON = siteMySQL.toJSON();
                 let recordNumber = recordsJSON.length;
                 console.log('Record number ' + recordNumber);
-                let currentDateTime = new Date();                
+                let currentDateTime = new Date();
+                let siteRecord;
                 let insertJob = [];
                 let jobRecord;
-                while (i < 2) {
-                    console.log('=====================================');
+                console.time('label')
+                while (i < recordNumber) {
+                    console.time('label '+ i);
+                    siteRecord = recordsJSON[i];
+                    // console.log('=====================================');
                     let autoGFPriority = recordsJSON[i].autogf_priority;                    
-                    console.log("Modified current datetime " + currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
-                    console.log('Site id ' + siteMySQL.toJSON()[i].siteid);
-                    console.log('Datetime ' + currentDateTime);
-                    console.log('Datetime ISO ' + currentDateTime.toISOString());
-                    console.log('Timestamp ' + currentDateTime.getTime());
-                    console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());                    
-                    console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[i].autogf_lastrun);
-                    let timeDiff = dateHandle.dateDiffInDaysCeil(siteMySQL.toJSON()[i].autogf_lastrun, currentDateTime);
-                    console.log('TIME DIFFERENCE ' + timeDiff);
+                    // console.log("Modified current datetime " + currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
+                    // console.log('Site id ' + siteMySQL.toJSON()[i].siteid);
+                    // console.log('Datetime ' + currentDateTime);
+                    // console.log('Datetime ISO ' + currentDateTime.toISOString());
+                    // console.log('Timestamp ' + currentDateTime.getTime());
+                    // console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());                    
+                    // console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[i].autogf_lastrun);
+                    let timeDiff = dateHandle.dateDiffInDaysCeil(siteRecord.autogf_lastrun, currentDateTime);                    
+                    // console.log('TIME DIFFERENCE ' + timeDiff);
                     if (timeDiff >= autoGFPriority) {
-                        console.log("Site with siteid " + siteMySQL.toJSON()[i].siteid + " is eligible for auto GF");
+                        console.log("Site with siteid " + siteRecord.siteid + " is eligible for auto GF");
                         jobRecord = 
                             {
-                                siteid: siteMySQL.toJSON()[i].siteid,
-                                siteurl: siteMySQL.toJSON()[i].siteurl,
-                                bbstype: siteMySQL.toJSON()[i].bbstype,
-                                cgipath: siteMySQL.toJSON()[i].cgipath,
-                                needlogin: siteMySQL.toJSON()[i].needlogin,
-                                agentname: siteMySQL.toJSON()[i].agentname,
-                                fetchdelay: siteMySQL.toJSON()[i].fetchdelay,
+                                siteid: siteRecord.siteid,
+                                siteurl: siteRecord.siteurl,
+                                bbstype: siteRecord.bbstype,
+                                cgipath: siteRecord.cgipath,
+                                needlogin: siteRecord.needlogin,
+                                agentname: siteRecord.agentname,
+                                fetchdelay: siteRecord.fetchdelay,
                                 timeoutvalue: "120",
                                 useproxy: "1",
-                                dateadded: siteMySQL.toJSON()[i].dateadded,
-                                dateupdated: siteMySQL.toJSON()[i].dateupdated,
-                                lastcrawl: siteMySQL.toJSON()[i].lastcrawl,
-                                lastrun: siteMySQL.toJSON()[i].autogf_lastrun,
-                                lastsync: siteMySQL.toJSON()[i].autogf_latsync,
-                                priority: siteMySQL.toJSON()[i].autogf_priority
+                                dateadded: siteRecord.dateadded,
+                                dateupdated: siteRecord.dateupdated,
+                                lastcrawl: siteRecord.lastcrawl,
+                                lastrun: siteRecord.autogf_lastrun,
+                                lastsync: siteRecord.autogf_latsync,
+                                priority: siteRecord.autogf_priority
                             };
                         insertJob.push(jobRecord);
                     }
                     //console.log(siteMySQL.toJSON()[i]);
-                    i++;
+                    console.timeEnd('label '+ i);
+                    i++;                    
                 }
+                console.timeEnd('label');
                 // return insertJob;
                 // return Promise.all([insertJob]);
                 return insertJob;
@@ -214,15 +220,15 @@ function queue_init() {
                     return insertQueue;
                 });
             }).then(function(insertQueue) {
-                let insertQueueCollection = model.QueueCollection.forge(insertQueue);                
+                let insertQueueCollection = model.QueueCollection.forge(insertQueue);
                 console.log('Queue Job ID ' + insertQueue[0].job_id);
                 console.log('Insert to queue ' + JSON.stringify(insertQueue));
                 return insertQueueCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
                     console.log('Queue records inserted - ' + operationStatus.length);
                     operationStatus.forEach(function(element, i) {
-                        console.log(`Queue id - ${element.get('id')} ///////// Job id - ${element.get(job_id)}`);
+                        console.log(`Queue id - ${element.id}`);
                     }, this);
-                    console.log('Added to jobs! ');
+                    console.log('Added to queue! ');
                 });
                 // return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
                 //     console.log('Added to queue!');
@@ -246,6 +252,7 @@ function queue_init() {
         console.error(err, err.stack);
     }).finally(function () {
         console.log('Finally finally block is executed!') ;
+        console.timeEnd('full');
         return model.closeMSSQLConnection(), model.closeMySQLConnection();
         // process.exit();
     });
