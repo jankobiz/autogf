@@ -128,6 +128,7 @@ function queue_init() {
                });
     }).then(function(modus) {    // Queue initialization or Queue update
         var sitesMySQL = new model.TestsitesMySQL();
+        let jobsMySQL = new model.Jobs();
         let queueModelArray = [];
         let qu = model.Queue.forge();
         let jobModelArray = [];
@@ -142,55 +143,73 @@ function queue_init() {
                 let recordsJSON = siteMySQL.toJSON();
                 let recordNumber = recordsJSON.length;
                 console.log('Record number ' + recordNumber);
-                let currentDateTime = new Date();
-                let siteRecord;
-                let insertJob = [];
-                let jobRecord;
-                console.time('label')
-                while (i < recordNumber) {
-                    console.time('label '+ i);
-                    siteRecord = recordsJSON[i];
-                    // console.log('=====================================');
-                    let autoGFPriority = recordsJSON[i].autogf_priority;                    
-                    // console.log("Modified current datetime " + currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
-                    // console.log('Site id ' + siteMySQL.toJSON()[i].siteid);
-                    // console.log('Datetime ' + currentDateTime);
-                    // console.log('Datetime ISO ' + currentDateTime.toISOString());
-                    // console.log('Timestamp ' + currentDateTime.getTime());
-                    // console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());                    
-                    // console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[i].autogf_lastrun);
-                    let timeDiff = dateHandle.dateDiffInDaysCeil(siteRecord.autogf_lastrun, currentDateTime);                    
-                    // console.log('TIME DIFFERENCE ' + timeDiff);
-                    if (timeDiff >= autoGFPriority) {
-                        console.log("Site with siteid " + siteRecord.siteid + " is eligible for auto GF");
-                        jobRecord = 
-                            {
-                                siteid: siteRecord.siteid,
-                                siteurl: siteRecord.siteurl,
-                                bbstype: siteRecord.bbstype,
-                                cgipath: siteRecord.cgipath,
-                                needlogin: siteRecord.needlogin,
-                                agentname: siteRecord.agentname,
-                                fetchdelay: siteRecord.fetchdelay,
-                                timeoutvalue: "120",
-                                useproxy: "1",
-                                dateadded: siteRecord.dateadded,
-                                dateupdated: siteRecord.dateupdated,
-                                lastcrawl: siteRecord.lastcrawl,
-                                lastrun: siteRecord.autogf_lastrun,
-                                lastsync: siteRecord.autogf_latsync,
-                                priority: siteRecord.autogf_priority
-                            };
-                        insertJob.push(jobRecord);
+                return jobsMySQL.orderBy('siteid', 'asc').fetchAll().then(function(jobsMySQL) {
+                    let jobRecordNumber = jobsMySQL.length;
+                    if (jobRecordNumber) {
+                        let jobRecordsJSON = jobsMySQL.toJSON();
+                        console.log('Already inserted records - ' + JSON.stringify(jobRecordsJSON));
                     }
-                    //console.log(siteMySQL.toJSON()[i]);
-                    console.timeEnd('label '+ i);
-                    i++;
-                }
-                console.timeEnd('label');
-                // return insertJob;
-                // return Promise.all([insertJob]);
-                return insertJob;
+                    else console.log('NO JOBS INSERTED!');
+                    let currentDateTime = new Date();
+                    let siteRecord;
+                    let insertJob = [];
+                    let updateJob = [];
+                    let jobRecord;
+                    console.time('label')
+                    while (i < 10) {
+                        console.time('label '+ i);
+                        siteRecord = recordsJSON[i];
+                        // console.log('=====================================');
+                        let autoGFPriority = recordsJSON[i].autogf_priority;
+                        // console.log("Modified current datetime " + currentDateTime.toString().replace(/\s(GMT)\+\d{4}\s+\(.+\)$/, ''));
+                        // console.log('Site id ' + siteMySQL.toJSON()[i].siteid);
+                        // console.log('Datetime ' + currentDateTime);
+                        // console.log('Datetime ISO ' + currentDateTime.toISOString());
+                        // console.log('Timestamp ' + currentDateTime.getTime());
+                        // console.log('Autogf lastrun ' + siteMySQL.toJSON()[i].autogf_lastrun.getTime());
+                        // console.log('Autogf lastrun datetime ' + siteMySQL.toJSON()[i].autogf_lastrun);
+                        let timeDiff = dateHandle.dateDiffInDaysCeil(siteRecord.autogf_lastrun, currentDateTime);
+                        // console.log('TIME DIFFERENCE ' + timeDiff);
+                        if (timeDiff >= autoGFPriority) {
+                            console.log("Site with siteid " + siteRecord.siteid + " is eligible for auto GF");
+                            jobRecord =
+                                {
+                                    siteid: siteRecord.siteid,
+                                    siteurl: siteRecord.siteurl,
+                                    bbstype: siteRecord.bbstype,
+                                    cgipath: siteRecord.cgipath,
+                                    needlogin: siteRecord.needlogin,
+                                    agentname: siteRecord.agentname,
+                                    fetchdelay: siteRecord.fetchdelay,
+                                    timeoutvalue: "120",
+                                    useproxy: "1",
+                                    dateadded: siteRecord.dateadded,
+                                    dateupdated: siteRecord.dateupdated,
+                                    lastcrawl: siteRecord.lastcrawl,
+                                    lastrun: siteRecord.autogf_lastrun,
+                                    lastsync: siteRecord.autogf_latsync,
+                                    priority: siteRecord.autogf_priority
+                                };
+                            let j=0;
+                            let 
+                            while (j < jobRecordNumber) {
+                                if (siteMySQL[i].siteid === jobsMySQL[j].siteid) {
+                                    updateJob.push(jobRecord);
+                                    break;
+                                }
+                                insertJob.push(jobRecord);
+                                j++;                                
+                            }
+                        }
+                        //console.log(siteMySQL.toJSON()[i]);
+                        console.timeEnd('label '+ i);
+                        i++;
+                    }
+                    console.timeEnd('label');
+                    // return insertJob;
+                    // return Promise.all([insertJob]);
+                    return insertJob;
+                });
             }).then (function(models){
                 let insertJobCollection = model.JobsCollection.forge(models);
                 let queueRecord;
