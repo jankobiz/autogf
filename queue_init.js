@@ -150,7 +150,10 @@ function queue_init() {
                         jobRecordsJSON = jobsMySQL.toJSON();
                         console.log('Already inserted records - ' + JSON.stringify(jobRecordsJSON));
                     }
-                    else console.log('NO JOBS INSERTED!');
+                    else {
+                        jobRecordNumber=0;
+                        console.log('NO JOBS INSERTED!');
+                    }
                     let currentDateTime = new Date();
                     let siteRecord;
                     let insertJob = [];
@@ -199,8 +202,8 @@ function queue_init() {
                                     updateJob.push(jobRecord);
                                     jobFound = true;
                                     break;
-                                }                                
-                                j++;                                
+                                }
+                                j++;
                             }
                             if(!jobFound) insertJob.push(jobRecord);
                         }
@@ -209,7 +212,7 @@ function queue_init() {
                         i++;
                     }
                     let siteFound = false;
-                    for(i=0; i < jobRecordsJSON.length; i++) {
+                    for(i=0; i < jobRecordNumber; i++) {
                         for(j=0; j < recordsJSON.length; j++) {
                             if(jobRecordsJSON[i].siteid === recordsJSON[j].siteid)  {
                                 siteFound = true;
@@ -222,12 +225,15 @@ function queue_init() {
                         siteFound = false;
                     }
                     console.timeEnd('label');
-                    return Promise.all([insertJob, updateJob, deleteModel]);                    
+                    console.log('Insert job ' + JSON.stringify(insertJob));
+                    console.log('Update job ' + JSON.stringify(updateJob));
+                    console.log('Delete job ' + JSON.stringify(deleteJob));
+                    return Promise.all([insertJob, updateJob, deleteModel]);
                 }).then (function(models){
-                    
+                    return models;
                 });
             }).then (function(models){
-                let insertJobCollection = model.JobsCollection.forge(models);
+                let insertJobCollection = model.JobsCollection.forge(models[0]);
                 let queueRecord;
                 let insertQueue = [];
                 return insertJobCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
@@ -254,9 +260,13 @@ function queue_init() {
                     //             console.log('Element 0 inserted into queue!');
                     //         });
                     // console.log("Insertion into queue completed!");
-                    return insertQueue;
+                    //return insertQueue;
+                    return Promise.all([insertQueue, models[1], models[2]]);
                 });
-            }).then(function(insertQueue) {
+            }).then(function(models) {
+                let insertQueue = models[0];
+                let updateJob = models[1];
+                let deleteJob = models[2];
                 let insertQueueCollection = model.QueueCollection.forge(insertQueue);
                 //console.log('Queue Job ID ' + insertQueue[0].job_id);
                 console.log('Insert to queue ' + JSON.stringify(insertQueue));
@@ -266,11 +276,14 @@ function queue_init() {
                         console.log(`Queue id - ${element.id}`);
                     }, this);
                     console.log('Added to queue! ');
+                    return Promise.all([updateJob, deleteJob]);
                 });
                 // return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
                 //     console.log('Added to queue!');
                 //     return 'Success!';
-                // });
+                // });                
+            }).then(function(models) {
+                console.log('Another that is lower update job ' + JSON.stringify(models));
             });
         // return testsiteMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
         //     let resultsMySQL = siteMySQL.toJSON();
