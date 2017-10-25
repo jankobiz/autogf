@@ -148,7 +148,7 @@ function queue_init() {
                     let jobRecordsJSON;
                     if (jobRecordNumber) {
                         jobRecordsJSON = jobsMySQL.toJSON();
-                        console.log('Already inserted records - ' + JSON.stringify(jobRecordsJSON));
+                        console.log('Number of already inserted records - ' + jobRecordNumber);
                     }
                     else {
                         jobRecordNumber=0;
@@ -161,7 +161,7 @@ function queue_init() {
                     let deleteJob = [];
                     let jobRecord;
                     console.time('label')
-                    while (i < 10) {
+                    while (i < recordNumber) {
                         console.time('label '+ i);
                         siteRecord = recordsJSON[i];
                         // console.log('=====================================');
@@ -196,9 +196,10 @@ function queue_init() {
                                     priority: siteRecord.autogf_priority
                                 };
                             let j=0;
-                            let jobFound = false;                            
+                            let jobFound = false;
                             while (j < jobRecordNumber) {
                                 if (siteRecord.siteid === jobRecordsJSON[j].siteid) {
+                                    jobRecord['id'] = jobRecordsJSON[j].id;
                                     updateJob.push(jobRecord);
                                     jobFound = true;
                                     break;
@@ -206,8 +207,7 @@ function queue_init() {
                                 j++;
                             }
                             if(!jobFound) insertJob.push(jobRecord);
-                        }
-                        //console.log(siteMySQL.toJSON()[i]);
+                        }                        
                         console.timeEnd('label '+ i);
                         i++;
                     }
@@ -236,6 +236,8 @@ function queue_init() {
                 let insertJobCollection = model.JobsCollection.forge(models[0]);
                 let queueRecord;
                 let insertQueue = [];
+                let updateJob = models[1];
+                let deleteJob = models[2];
                 return insertJobCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
                     console.log('Records inserted to jobs - ' + operationStatus.length);
                     if (operationStatus.length > 0) {
@@ -247,21 +249,8 @@ function queue_init() {
                             };
                             insertQueue.push(queueRecord);
                         }, this);
-                    }
-                    // return operationStatus[0].related('queue').add(
-                    //         [{
-                    //             job_id: operationStatus[0].id,
-                    //             priority: "15"
-                    //         }, {
-                    //             job_id: operationStatus[0].id,
-                    //             priority: "16"
-                    //         }])
-                    //         .invokeThen('save').then(function(success) {
-                    //             console.log('Element 0 inserted into queue!');
-                    //         });
-                    // console.log("Insertion into queue completed!");
-                    //return insertQueue;
-                    return Promise.all([insertQueue, models[1], models[2]]);
+                    }                   
+                    return Promise.all([insertQueue, updateJob, deleteJob]);
                 });
             }).then(function(models) {
                 let insertQueue = models[0];
@@ -276,14 +265,20 @@ function queue_init() {
                         console.log(`Queue id - ${element.id}`);
                     }, this);
                     console.log('Added to queue! ');
-                    return Promise.all([updateJob, deleteJob]);
+                    return models;
                 });
-                // return  qu.save({priority: "15", job_id: operationStatus[0].id}).then(function() {
-                //     console.log('Added to queue!');
-                //     return 'Success!';
-                // });                
             }).then(function(models) {
-                console.log('Another that is lower update job ' + JSON.stringify(models));
+                let updateJobCollection = model.JobsCollection.forge(models[1]);
+                let deleteJob = models[2];
+                console.log('Another that is lower update job ' + JSON.stringify(models[1]));
+                return updateJobCollection.invokeThen('save', null, {method: 'update'}).then(function(operationStatus) {
+                    console.log('Job records updated - ' + operationStatus.length);
+                    operationStatus.forEach(function(element, i) {
+                        console.log(`Job id - ${element.id}`);
+                    }, this);
+                    console.log('Job data is updated!');
+                    return Promise.all([operationStatus, deleteJob]);
+                });
             });
         // return testsiteMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
         //     let resultsMySQL = siteMySQL.toJSON();
