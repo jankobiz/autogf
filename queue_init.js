@@ -17,7 +17,7 @@ var testsiteMySQL = new model.TestsitesMySQL();
     console.log('Cron task number ' + cronTaskNo++);
     queue_init();
 // }, 20000);
-console.time('full');
+console.time('Script execution time');
 function queue_init() {
     //  fetch records from MS SQL DB
     let updateModel = [];
@@ -119,7 +119,7 @@ function queue_init() {
                         });
                }).then(function(deleteModels) {
                    return deleteTestsiteMySQL.query().whereIn('siteid', deleteModel).del().then(function () {
-                            console.log('Records deleted ' + deleteModel.length);
+                            console.log('Records deleted - ' + deleteModel.length);
                             deleteModel.forEach(function(element, i) {
                                 console.log('Siteid - ' + element);
                             }, this);
@@ -135,10 +135,8 @@ function queue_init() {
         let job = model.Jobs.forge();
         console.log('Is Queue new');
         console.log(qu.isNew());
-        return sitesMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
-            //console.log(JSON.stringify(siteMySQL));
-                let n = utilFunctions.getRandomIntInclusive(0,27325);
-                // console.log('Random number ' + i);
+        return sitesMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {            
+                let n = utilFunctions.getRandomIntInclusive(0,27325);                
                 let i = 0;
                 let recordsJSON = siteMySQL.toJSON();
                 let recordNumber = recordsJSON.length;
@@ -152,7 +150,7 @@ function queue_init() {
                     }
                     else {
                         jobRecordNumber=0;
-                        console.log('NO JOBS INSERTED!');
+                        console.log('Jobs table is empty!');
                     }
                     let currentDateTime = new Date();
                     let siteRecord;
@@ -161,8 +159,8 @@ function queue_init() {
                     let deleteJob = [];
                     let jobRecord;
                     console.time('label')
+                    let eligibleSites = 0;
                     while (i < recordNumber) {
-                        console.time('label '+ i);
                         siteRecord = recordsJSON[i];
                         // console.log('=====================================');
                         let autoGFPriority = recordsJSON[i].autogf_priority;
@@ -176,7 +174,7 @@ function queue_init() {
                         let timeDiff = dateHandle.dateDiffInDaysCeil(siteRecord.autogf_lastrun, currentDateTime);
                         // console.log('TIME DIFFERENCE ' + timeDiff);
                         if (timeDiff >= autoGFPriority) {
-                            console.log("Site with siteid " + siteRecord.siteid + " is eligible for auto GF");
+                            eligibleSites++;
                             jobRecord =
                                 {
                                     siteid: siteRecord.siteid,
@@ -207,10 +205,10 @@ function queue_init() {
                                 j++;
                             }
                             if(!jobFound) insertJob.push(jobRecord);
-                        }                        
-                        console.timeEnd('label '+ i);
+                        }
                         i++;
                     }
+                    console.log(`Number of eligible sites for auto GF - ${eligibleSites}`);
                     let siteFound = false;
                     for(i=0; i < jobRecordNumber; i++) {
                         for(j=0; j < recordsJSON.length; j++) {
@@ -225,9 +223,9 @@ function queue_init() {
                         siteFound = false;
                     }
                     console.timeEnd('label');
-                    console.log('Insert job ' + JSON.stringify(insertJob));
-                    console.log('Update job ' + JSON.stringify(updateJob));
-                    console.log('Delete job ' + JSON.stringify(deleteJob));
+                    console.log('Number of record to be inserted ' + insertJob.length);
+                    console.log('Number of record to be updated ' + updateJob.length);
+                    console.log('Number of record to be deleted ' + deleteJob.length);
                     return Promise.all([insertJob, updateJob, deleteModel]);
                 }).then (function(models){
                     return models;
@@ -240,16 +238,18 @@ function queue_init() {
                 let deleteJob = models[2];
                 return insertJobCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
                     console.log('Records inserted to jobs - ' + operationStatus.length);
+                    let queueRecordsToInsert = 0
                     if (operationStatus.length > 0) {
                         operationStatus.forEach(function(element, i) {
-                            console.log('Siteid - ' + element.get('siteid'));
+                            queueRecordsToInsert++;
                             queueRecord = {
                                 job_id: element.get('id'),
                                 priority: "15"
                             };
                             insertQueue.push(queueRecord);
                         }, this);
-                    }                   
+                    }
+                    console.log(`Number of queue records to be inserted - ${queueRecordsToInsert}`);
                     return Promise.all([insertQueue, updateJob, deleteJob]);
                 });
             }).then(function(models) {
@@ -257,47 +257,32 @@ function queue_init() {
                 let updateJob = models[1];
                 let deleteJob = models[2];
                 let insertQueueCollection = model.QueueCollection.forge(insertQueue);
-                //console.log('Queue Job ID ' + insertQueue[0].job_id);
-                console.log('Insert to queue ' + JSON.stringify(insertQueue));
+                console.log('Number of records to be inserted to queue - ' + insertQueue.length);
                 return insertQueueCollection.invokeThen('save', null, {method: 'insert'}).then(function(operationStatus) {
-                    console.log('Queue records inserted - ' + operationStatus.length);
-                    operationStatus.forEach(function(element, i) {
-                        console.log(`Queue id - ${element.id}`);
-                    }, this);
-                    console.log('Added to queue! ');
+                    console.log(`Records added to queue - ${operationStatus.length}`);
                     return models;
                 });
             }).then(function(models) {
                 let updateJobCollection = model.JobsCollection.forge(models[1]);
-                let deleteJob = models[2];
-                console.log('Another that is lower update job ' + JSON.stringify(models[1]));
+                let deleteJob = models[2];                
                 return updateJobCollection.invokeThen('save', null, {method: 'update'}).then(function(operationStatus) {
                     console.log('Job records updated - ' + operationStatus.length);
-                    operationStatus.forEach(function(element, i) {
-                        console.log(`Job id - ${element.id}`);
-                    }, this);
-                    console.log('Job data is updated!');
                     return Promise.all([operationStatus, deleteJob]);
                 });
-            });
-        // return testsiteMySQL.orderBy('siteid', 'asc').fetchAll().then(function(siteMySQL) {
-        //     let resultsMySQL = siteMySQL.toJSON();
-        //     console.log(resultsMySQL.length + ' MySQL testsites records fetched');
-            
-        //     return queue.save().then(function () {
-        //         console.log('Added into queue!');
-        //     });
-        //     // queue.set({siteid: resultsMySQL[0].siteid, siteurl: resultsMySQL[0].siteurl, bbstype: 'tipbbs', cgipath: 'cgipath',  needlogin: '0', agentname: 'BR'});
-        //     // return model.Queue.forge({siteid: resultsMySQL[0].siteid}).save({siteurl: resultsMySQL[0].siteurl, bbstype: "tipbbs"}).save().then(function(model) {
-        //     //     console.log('Queue ' + model);
-        //     // });            
-        // });
+            }).then(function(models) {
+                let deleteJobCollection = model.JobsCollection.forge(models[1]);
+                let deleteJob = models[2];
+                return updateJobCollection.invokeThen('save', null, {method: 'update'}).then(function(operationStatus) {
+                    console.log('Job records updated - ' + operationStatus.length);
+                    return Promise.all([operationStatus, deleteJob]);
+                });
+            });        
     }).catch(function(err) {
         console.error("Bookshelf problem " + err);
         console.error(err, err.stack);
     }).finally(function () {
         console.log('Finally finally block is executed!') ;
-        console.timeEnd('full');
+        console.timeEnd('Script execution time');
         return model.closeMSSQLConnection(), model.closeMySQLConnection();
         // process.exit();
     });
